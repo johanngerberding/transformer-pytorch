@@ -5,11 +5,11 @@
 
 ## Model architecture 
 
-<img src="assets/transformer_model_architecture.jpg" width="50%"/>
+<img src="assets/transformer_model_architecture.png" width="50%"/>
 
 ### Components
 
-<img src="assets/attention.jpg" width="80%"/>
+<img src="assets/attention.png" width="80%"/>
 
 
 ## ToDos
