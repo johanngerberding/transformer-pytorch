@@ -2,6 +2,7 @@
 
 * [Paper](https://arxiv.org/pdf/1706.03762.pdf)
 
+This repository contains my implementation of the (Vanilla) Transformer model from 2017 using PyTorch.
 
 ## Model architecture 
 
@@ -10,6 +11,9 @@
 ### Components
 
 <img src="assets/attention.png" width="80%"/>
+
+## Training 
+
 
 
 ## ToDos

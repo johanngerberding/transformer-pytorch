@@ -4,6 +4,30 @@ import numpy as np
 import requests
 import random
 import urllib
+import torch
+from torch.autograd import Variable
+from transformer import subsequent_mask
+
+
+class Batch:
+    "Object for holding a batch of data with mask during training"
+    def __init__(self, src, tgt, pad_idx):
+        self.src = src
+        self.src_mask = (src != pad_idx).unsqueeze(-2)
+
+        if tgt is not None:
+            self.tgt = tgt[:, :-1]
+            self.tgt_y = tgt[:, 1:]
+            self.tgt_mask = self.make_std_mask(self.tgt, pad_idx)
+            self.ntokens = (self.tgt_y != pad_idx).data.sum()
+
+    @staticmethod
+    def make_std_mask(tgt, pad_idx):
+        "Create a mask to hide padding and future words"
+        tgt_mask = (tgt != pad_idx).unsqueeze(-2)
+        tgt_mask = tgt_mask & Variable(subsequent_mask(tgt.size(-1)).type_as(tgt_mask.data))
+        return tgt_mask
+
 
 DATA_CONFIG = {
     "wmt14": {
@@ -139,14 +163,22 @@ class WMT14:
                     batch_tgt.append(idxs_tgt)
 
                     if len(batch_src) == batch_size:
-                        yield np.array(batch_src).copy(), np.array(batch_tgt).copy()
+                        src = torch.from_numpy(np.array(batch_src).copy())
+                        tgt = torch.from_numpy(np.array(batch_tgt).copy())
+                        src = Variable(src, requires_grad=False)
+                        tgt = Variable(tgt, requires_grad=False)
+
+                        yield Batch(src, tgt, PAD_ID)
+
                         batch_src = []
                         batch_tgt = []
 
             ep += 1
 
         if len(batch_src) > 0:
-            yield np.array(batch_src).copy(), np.array(batch_tgt).copy()
+            src = torch.from_numpy(np.array(batch_src).copy())
+            tgt = torch.from_numpy(np.array(batch_tgt).copy())
+            yield Batch(src, tgt, PAD_ID)
 
 
 def decode_sentence(idx2word, sentence: list) -> str:
