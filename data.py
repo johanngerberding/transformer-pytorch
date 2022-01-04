@@ -11,14 +11,14 @@ from transformer import subsequent_mask
 
 class Batch:
     "Object for holding a batch of data with mask during training"
-    def __init__(self, src, tgt, pad_idx):
-        self.src = src
-        self.src_mask = (src != pad_idx).unsqueeze(-2)
+    def __init__(self, src, tgt, pad_idx, device):
+        self.src = src.to(device)
+        self.src_mask = (src != pad_idx).unsqueeze(-2).to(device)
 
         if tgt is not None:
-            self.tgt = tgt[:, :-1]
-            self.tgt_y = tgt[:, 1:]
-            self.tgt_mask = self.make_std_mask(self.tgt, pad_idx)
+            self.tgt = tgt[:, :-1].to(device)
+            self.tgt_y = tgt[:, 1:].to(device)
+            self.tgt_mask = self.make_std_mask(self.tgt, pad_idx).to(device)
             self.ntokens = (self.tgt_y != pad_idx).data.sum()
 
     @staticmethod
@@ -136,7 +136,9 @@ class WMT14:
                 yield sentence_1, sentence_2
 
 
-    def data_generator(self, batch_size, seq_len, data_type='train', file_prefix=None, epoch=None):
+    def data_generator(self, batch_size, seq_len, 
+                       device, data_type='train', 
+                       file_prefix=None, epoch=None):
         # yield a pair of sentences (source, target)
         # each sentence is a list of idxs
         assert data_type in ['train', 'test']
@@ -168,7 +170,7 @@ class WMT14:
                         src = Variable(src, requires_grad=False)
                         tgt = Variable(tgt, requires_grad=False)
 
-                        yield Batch(src, tgt, PAD_ID)
+                        yield Batch(src, tgt, PAD_ID, device)
 
                         batch_src = []
                         batch_tgt = []
@@ -178,7 +180,10 @@ class WMT14:
         if len(batch_src) > 0:
             src = torch.from_numpy(np.array(batch_src).copy())
             tgt = torch.from_numpy(np.array(batch_tgt).copy())
-            yield Batch(src, tgt, PAD_ID)
+            src = Variable(src, requires_grad=False)
+            tgt = Variable(tgt, requires_grad=False)
+            
+            yield Batch(src, tgt, PAD_ID, device)
 
 
 def decode_sentence(idx2word, sentence: list) -> str:

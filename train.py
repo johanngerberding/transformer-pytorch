@@ -159,7 +159,7 @@ def greedy_decode(model, src, src_mask, max_len, start_symbol):
 
 
 def main():
-    batch_size = 8
+    batch_size = 64
     max_seq_len = 100
     epochs = 10
     warmup_steps = 2000
@@ -176,17 +176,23 @@ def main():
 
     experiment_dir = os.path.join(dir_path, experiment_dir)
     os.makedirs(experiment_dir, exist_ok=False)
+    
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Training device: {device}")
 
     writer = SummaryWriter()
     dataset = WMT14('wmt14')
+    if len(os.listdir(dataset.data_dir)) <= 0:
+        dataset._download_files()
+    
     dataset.load_vocab()
     data_gen = dataset.data_generator(batch_size,
                                       max_seq_len,
+                                      device,
                                       data_type='train')
     data_gen_val = dataset.data_generator(batch_size,
                                           max_seq_len,
+                                          device,
                                           data_type='test')
 
     src_vocab_size = len(dataset.src_idx2word)
@@ -194,12 +200,12 @@ def main():
 
     criterion = LabelSmoothing(size=tgt_vocab_size,
                                padding_idx=0, smoothing=0.1)
+    criterion.to(device)
     model = build_model(src_vocab_size, tgt_vocab_size, N=6)
     model.to(device)
     model_opt = NoamOpt(model.src_embed[0].d_model, 1, warmup_steps,
                         torch.optim.Adam(model.parameters(), lr=initial_lr,
                                          betas=(beta_1, beta_2), eps=1e-9))
-    model_opt.to(device)
 
     for epoch in range(1, epochs + 1):
         model.train()
