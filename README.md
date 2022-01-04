@@ -14,19 +14,28 @@ This repository contains my implementation of the (Vanilla) Transformer model fr
 
 ## Training 
 
+You can train your Transformer model from scratch after creating an environment based on the `requirements.txt`. The configurations (`config.py`) are from the original paper, you can change them if necessary. The WMT14 dataset will be downloaded automatically.
 
+Training with standard config:
+```
+python3 -m venv .env
+source .env/bin/activate
+pip install -r requirements.txt
+python3 train.py
+```
 
 ## ToDos
 
 * code for loading the data, I think I will use WMT14 EN-DE
-* implement the model:
-    - positional encoding
-    - scaled dot product attention
-    - (masked) multi-head attention
-    - feed forward layer
-    - add & norm layer
+* check if current implementation works correctly
+* implement BLEU score evaluation
+* translation/inference script
+* multi-gpu training script
+* (add support for more datasets)
+* provide a download link for a pretrained model
 
 ## References
+
 
 * [Attention? Attention!](https://lilianweng.github.io/lil-log/2018/06/24/attention-attention.html)
 * [Pytorch Tutorial](https://pytorch.org/tutorials/beginner/translation_transformer.html)
