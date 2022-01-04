@@ -21,6 +21,7 @@ Training with standard config:
 python3 -m venv .env
 source .env/bin/activate
 pip install -r requirements.txt
+# install pytorch (I worked with 1.9)
 python3 train.py
 ```
 
