@@ -1,5 +1,6 @@
 import os
 from datetime import date
+import argparse
 import time
 import glob
 from numpy.lib.function_base import gradient
@@ -10,6 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from data import WMT14, Batch, decode_sentence
 from transformer import subsequent_mask, build_model
+from config import get_cfg_defaults
 
 global max_src_in_batch, max_tgt_in_batch
 
@@ -98,7 +100,8 @@ def example_data_gen(V: int, batch: int, nbatches: int):
         yield Batch(src, tgt, 0)
 
 
-def run_epoch(data_iter, model: nn.Module, loss_compute) -> float:
+def run_epoch(data_iter, model: nn.Module, loss_compute, 
+              epoch: int, writer, experiment_dir: str) -> float:
     start = time.time()
     total_tokens = 0
     total_loss = 0
@@ -112,17 +115,30 @@ def run_epoch(data_iter, model: nn.Module, loss_compute) -> float:
         total_loss += loss
         total_tokens += batch.ntokens
         tokens += batch.ntokens
-        if i % 50 == 1:
+        if i % 100 == 0:
             elapsed = time.time() - start
             print("Epoch step: {} loss: {} tokens per second: {}"
                   .format(i, loss / batch.ntokens, tokens / elapsed))
             start = time.time()
             tokens = 0
+            
+        if i % 1000 == 0:
+            if loss_compute == None:
+                writer.add_scalar("loss/val", loss.item(), epoch * i)
+            else: 
+                writer.add_scalar("loss/train", loss.item(), epoch * i)
+        
+        if i % 100000 == 0:
+            if loss_compute is not None:
+                torch.save(model.state_dict(), 
+                        os.path.join(experiment_dir, 
+                                        "epoch_{}_{}.pth".format(str(epoch).zfill(3), 
+                                                                str(i).zfill(10))))
 
     return total_loss / total_tokens
 
 
-class SimpleLossCompute:
+class LossCompute:
     "A simple loss compute and train function"
     def __init__(self, generator, criterion, opt=None):
         self.generator = generator
@@ -139,63 +155,6 @@ class SimpleLossCompute:
             self.opt.optimizer.zero_grad()
 
         return loss.item() * norm
-
-
-class MultiGPULossCompute:
-    "A multi-gpu loss compute and train function."
-    def __init__(self, generator, criterion, devices, opt=None, chunk_size=5):
-        self.generator = generator
-        self.criterion = nn.parallel.replicate(criterion, devices=devices)
-        self.opt = opt 
-        self.devices = devices
-        self.chunk_size = chunk_size
-        
-    def __call__(self, out, targets, normalize):
-        total = 0.0
-        generator = nn.parallel.replicate(self.generator, 
-                                          devices=self.devices)
-        out_scatter = nn.parallel.scatter(out, 
-                                          target_gpus=self.devices)
-        out_grad = [[] for _ in out_scatter]
-        targets = nn.parallel.scatter(targets, 
-                                      target_gpus=self.devices)
-        chunk_size = self.chunk_size
-        for i in range(0, out_scatter[0].size(1), chunk_size):
-            # predict distributions
-            out_column = [[Variable(o[:, i:i+chunk_size].data, 
-                                    requires_grad=self.opt is not None)]
-                          for o in out_scatter]
-            
-            gen = nn.parallel.parallel_apply(generator, out_column)
-            
-            # compute loss 
-            y = [(g.contiguous().view(-1, g.size(-1)), 
-                  t[:, i:i+chunk_size].contiguous().view(-1)) 
-                 for g, t in zip(gen, targets)]        
-            loss = nn.parallel.parallel_apply(self.criterion, y)
-    
-            # sum and normalize loss
-            l = nn.parallel.gather(loss, target_device=self.devices[0])
-            l = l.sum()[0] / normalize
-            total += l.data[0]
-            
-            # backprop loss to output of transformer
-            if self.opt is not None:
-                l.backward()
-                for j, l in enumerate(loss):
-                    out_grad[j].append(out_column[j][0].grad.data.clone())
-        
-        # backprop all loss through transformer
-        if self.opt is not None:
-            out_grad = [Variable(torch.cat(og, dim=1)) for og in out_grad]
-            o1 = out 
-            o2 = nn.parallel.gather(out_grad, target_device=self.devices[0])
-            
-            o1.backward(gradient=o2)
-            self.opt.step()
-            self.opt.optimizer.zero_grad()
-        
-        return total * normalize
 
 
 def greedy_decode(model, src, src_mask, max_len, start_symbol):
@@ -217,24 +176,36 @@ def greedy_decode(model, src, src_mask, max_len, start_symbol):
 
 
 def main():
-    batch_size = 64
-    max_seq_len = 100
-    epochs = 10
-    warmup_steps = 2000
-    initial_lr = 0
-    beta_1 = 0.9
-    beta_2 = 0.98
-
-    dir_path = os.path.dirname(os.path.realpath(__file__))
-    today = date.today().strftime("%Y-%m-%d")
-    experiment_dir = "experiments/{}_{}_{}_{}".format(today,
-                                                      str(batch_size),
-                                                      str(epochs),
-                                                      str(max_seq_len))
-
-    experiment_dir = os.path.join(dir_path, experiment_dir)
-    os.makedirs(experiment_dir, exist_ok=False)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', 
+                        help="Path to customized experiment.yaml", 
+                        type=str, 
+                        default=None)
+    parser.add_argument('--out', 
+                        help="Path to output directory", 
+                        type=str, 
+                        default=None)
+    args = parser.parse_args()
     
+    cfg = get_cfg_defaults()
+    if args.config:
+        cfg.merge_from_file(args.config)
+    cfg.freeze()
+    print(cfg)
+
+    if args.out is None:
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        today = date.today().strftime("%Y-%m-%d")
+        experiment_dir = "experiments/{}_{}_{}_{}".format(today,
+                                                        str(cfg.TRAIN.BATCH_SIZE),
+                                                        str(cfg.TRAIN.N_EPOCHS),
+                                                        str(cfg.DATASET.MAX_SEQ_LEN))
+
+        experiment_dir = os.path.join(dir_path, experiment_dir)
+        os.makedirs(experiment_dir, exist_ok=False)
+    else: 
+        os.makedirs(args.out, exist_ok=False)
+        
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Training device: {device}")
 
@@ -244,12 +215,12 @@ def main():
         dataset._download_files()
     
     dataset.load_vocab()
-    data_gen = dataset.data_generator(batch_size,
-                                      max_seq_len,
+    data_gen = dataset.data_generator(cfg.TRAIN.BATCH_SIZE,
+                                      cfg.DATASET.MAX_SEQ_LEN,
                                       device,
                                       data_type='train')
-    data_gen_val = dataset.data_generator(batch_size,
-                                          max_seq_len,
+    data_gen_val = dataset.data_generator(cfg.VAL.BATCH_SIZE,
+                                          cfg.DATASET.MAX_SEQ_LEN,
                                           device,
                                           data_type='test')
 
@@ -257,28 +228,42 @@ def main():
     tgt_vocab_size = len(dataset.tgt_idx2word)
 
     criterion = LabelSmoothing(size=tgt_vocab_size,
-                               padding_idx=0, smoothing=0.1)
+                               padding_idx=0, smoothing=cfg.TRAIN.SMOOTHING)
     criterion.to(device)
-    model = build_model(src_vocab_size, tgt_vocab_size, N=6)
+    model = build_model(src_vocab_size, 
+                        tgt_vocab_size, 
+                        N=cfg.MODEL.NUM_LAYERS,
+                        d_model=cfg.MODEL.D_MODEL,
+                        d_ff=cfg.MODEL.FFN_DIM,
+                        h=cfg.MODEL.ATTN_HEADS,
+                        dropout=cfg.MODEL.DROPOUT)
     model.to(device)
-    model_opt = NoamOpt(model.src_embed[0].d_model, 1, warmup_steps,
-                        torch.optim.Adam(model.parameters(), lr=initial_lr,
-                                         betas=(beta_1, beta_2), eps=1e-9))
+    model_opt = NoamOpt(model.src_embed[0].d_model, 
+                        cfg.OPTIMIZER.FACTOR, 
+                        cfg.OPTIMIZER.WARMUP,
+                        torch.optim.Adam(model.parameters(), 
+                                         lr=cfg.OPTIMIZER.INITIAL_LR,
+                                         betas=(cfg.OPTIMIZER.BETA_1, 
+                                                cfg.OPTIMIZER.BETA_2), 
+                                         eps=cfg.OPTIMIZER.EPS))
 
-    for epoch in range(1, epochs + 1):
+    for epoch in range(1, cfg.TRAIN.N_EPOCHS + 1):
         model.train()
         loss_train = run_epoch(data_gen, model,
-                  SimpleLossCompute(model.generator, criterion, model_opt))
+                  LossCompute(model.generator, criterion, model_opt), 
+                  epoch, writer)
 
-        writer.add_scalar('loss/train', loss_train, epoch)
+        writer.add_scalar('loss/train/epoch', loss_train, epoch)
         model.eval()
         with torch.no_grad():
             loss_val = run_epoch(data_gen_val, model,
-                            SimpleLossCompute(model.generator, criterion, None))
+                            LossCompute(model.generator, criterion, None), 
+                            epoch, writer)
 
-        writer.add_scalar('loss/val', loss_val, epoch)
+        writer.add_scalar('loss/val/epoch', loss_val, epoch)
 
-        torch.save(model.state_dict(), os.path.join(experiment_dir, "epoch_{}.pth".format(str(epoch).zfill(3))))
+        torch.save(model.state_dict(), os.path.join(experiment_dir, 
+                                                    "epoch_{}.pth".format(str(epoch).zfill(3))))
         checkpoints = glob.glob(experiment_dir + "/*.pth")
         checkpoints.sort()
         del_checkpoints = checkpoints[:-3]

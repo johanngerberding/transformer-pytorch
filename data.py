@@ -9,26 +9,6 @@ from torch.autograd import Variable
 from transformer import subsequent_mask
 
 
-class Batch:
-    "Object for holding a batch of data with mask during training"
-    def __init__(self, src, tgt, pad_idx, device):
-        self.src = src.to(device)
-        self.src_mask = (src != pad_idx).unsqueeze(-2).to(device)
-
-        if tgt is not None:
-            self.tgt = tgt[:, :-1].to(device)
-            self.tgt_y = tgt[:, 1:].to(device)
-            self.tgt_mask = self.make_std_mask(self.tgt, pad_idx).to(device)
-            self.ntokens = (self.tgt_y != pad_idx).data.sum()
-
-    @staticmethod
-    def make_std_mask(tgt, pad_idx):
-        "Create a mask to hide padding and future words"
-        tgt_mask = (tgt != pad_idx).unsqueeze(-2)
-        tgt_mask = tgt_mask & Variable(subsequent_mask(tgt.size(-1)).type_as(tgt_mask.data))
-        return tgt_mask
-
-
 DATA_CONFIG = {
     "wmt14": {
         "source_lang": "en",
@@ -51,6 +31,26 @@ PAD_ID = 0
 UNK_ID = 1
 SOS_ID = 2
 EOS_ID = 3
+
+class Batch:
+    "Object for holding a batch of data with mask during training"
+    def __init__(self, src, tgt, pad_idx, device):
+        self.src = src.to(device)
+        self.src_mask = (src != pad_idx).unsqueeze(-2).to(device)
+
+        if tgt is not None:
+            self.tgt = tgt[:, :-1].to(device)
+            self.tgt_y = tgt[:, 1:].to(device)
+            self.tgt_mask = self.make_std_mask(self.tgt, pad_idx).to(device)
+            self.ntokens = (self.tgt_y != pad_idx).data.sum()
+
+    @staticmethod
+    def make_std_mask(tgt, pad_idx):
+        "Create a mask to hide padding and future words"
+        tgt_mask = (tgt != pad_idx).unsqueeze(-2)
+        tgt_mask = tgt_mask & Variable(subsequent_mask(tgt.size(-1)).type_as(tgt_mask.data))
+        return tgt_mask
+
 
 class WMT14:
     def __init__(self, name: str, data_dir: str = ".data/"):
@@ -192,22 +192,3 @@ def decode_sentence(idx2word, sentence: list) -> str:
     sen_l = [w for w in sen_l if w not in ['<s>', '</s>', '<pad>']]
     sen_l = ' '.join(sen_l)
     return sen_l
-
-
-def main():
-    wmt = WMT14("wmt14")
-    wmt._download_files()
-    data_gen = wmt.data_generator(4, 25)
-
-    for src, tgt in data_gen:
-        for i in range(src.shape[0]):
-            sen1 = decode_sentence(wmt.src_idx2word, src[i])
-            print("source: {}".format(sen1))
-            sen2 = decode_sentence(wmt.tgt_idx2word, tgt[i])
-            print("target: {}".format(sen2))
-
-        break
-
-
-if __name__ == "__main__":
-    main()
