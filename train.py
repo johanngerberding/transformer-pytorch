@@ -128,7 +128,7 @@ def run_epoch(data_iter, model: nn.Module, loss_compute,
             else: 
                 writer.add_scalar("loss/train", loss.item(), epoch * i)
         
-        if i % 100000 == 0:
+        if i % 10000 == 0:
             if loss_compute is not None:
                 torch.save(model.state_dict(), 
                         os.path.join(experiment_dir, 
@@ -251,14 +251,14 @@ def main():
         model.train()
         loss_train = run_epoch(data_gen, model,
                   LossCompute(model.generator, criterion, model_opt), 
-                  epoch, writer)
+                  epoch, writer, experiment_dir)
 
         writer.add_scalar('loss/train/epoch', loss_train, epoch)
         model.eval()
         with torch.no_grad():
             loss_val = run_epoch(data_gen_val, model,
                             LossCompute(model.generator, criterion, None), 
-                            epoch, writer)
+                            epoch, writer, experiment_dir)
 
         writer.add_scalar('loss/val/epoch', loss_val, epoch)
 
