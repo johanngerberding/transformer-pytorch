@@ -136,8 +136,8 @@ class WMT14:
                 yield sentence_1, sentence_2
 
 
-    def data_generator(self, batch_size, seq_len, 
-                       device, data_type='train', 
+    def data_generator(self, batch_size, seq_len,
+                       device, data_type='train',
                        file_prefix=None, epoch=None):
         # yield a pair of sentences (source, target)
         # each sentence is a list of idxs
@@ -182,13 +182,20 @@ class WMT14:
             tgt = torch.from_numpy(np.array(batch_tgt).copy())
             src = Variable(src, requires_grad=False)
             tgt = Variable(tgt, requires_grad=False)
-            
+
             yield Batch(src, tgt, PAD_ID, device)
 
 
 def decode_sentence(idx2word, sentence: list) -> str:
     sen_l = [idx2word[w] for w in sentence]
     # don't remove <unk>
-    sen_l = [w for w in sen_l if w not in ['<s>', '</s>', '<pad>']]
-    sen_l = ' '.join(sen_l)
-    return sen_l
+    red_sen = []
+    for w in sen_l:
+        if w == '</s>':
+            break
+        else:
+            if w not in ['<s>', '<pad>']:
+                red_sen.append(w)
+                
+    sen = ' '.join(red_sen)
+    return sen

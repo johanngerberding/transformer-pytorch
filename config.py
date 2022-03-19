@@ -1,4 +1,4 @@
-from yacs.config import CfgNode as CN 
+from yacs.config import CfgNode as CN
 
 _C = CN()
 
@@ -6,12 +6,12 @@ _C.SYSTEM = CN()
 _C.SYSTEM.NUM_GPUS = 1
 
 _C.TRAIN = CN()
-_C.TRAIN.N_EPOCHS = 5
-_C.TRAIN.BATCH_SIZE = 32
+_C.TRAIN.N_EPOCHS = 3
+_C.TRAIN.BATCH_SIZE = 64
 _C.TRAIN.SMOOTHING = 0.1
 
 _C.VAL = CN()
-_C.VAL.BATCH_SIZE = 16
+_C.VAL.BATCH_SIZE = 32
 
 _C.TEST = CN()
 _C.TEST.BATCH_SIZE = 1
@@ -32,9 +32,8 @@ _C.MODEL.NUM_LAYERS = 6
 _C.MODEL.ATTN_HEADS = 8
 _C.MODEL.FFN_DIM = 2048
 _C.MODEL.DROPOUT = 0.1
-
 _C.DATASET = CN()
-_C.DATASET.MAX_SEQ_LEN = 200
+_C.DATASET.MAX_SEQ_LEN = 100
 
 
 def get_cfg_defaults():
