@@ -32,6 +32,9 @@ UNK_ID = 1
 SOS_ID = 2
 EOS_ID = 3
 
+
+
+
 class Batch:
     "Object for holding a batch of data with mask during training"
     def __init__(self, src, tgt, pad_idx, device):
@@ -196,6 +199,14 @@ def decode_sentence(idx2word, sentence: list) -> str:
         else:
             if w not in ['<s>', '<pad>']:
                 red_sen.append(w)
-                
+
     sen = ' '.join(red_sen)
     return sen
+
+
+def encode_sentence(cfg, dataset, sentence: str):
+    sentence = sentence.strip().lower().split()
+    word_idxs = [dataset.src_word2idx.get(w, UNK_ID) for w in sentence]
+    word_idxs = word_idxs + [EOS_ID]
+    word_idxs += [PAD_ID] * max(0, cfg.DATASET.MAX_SEQ_LEN - len(word_idxs))
+    return word_idxs
