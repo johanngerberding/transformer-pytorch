@@ -9,8 +9,7 @@ from data import  PAD_ID, SOS_ID, decode_sentence, encode_sentence
 from config import get_cfg_defaults
 
 
-# DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-DEVICE = torch.device('cpu')
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def greedy_decode(model, src, src_mask, max_len, start_symbol, dataset):
     encoded = model.encode(src, src_mask)
@@ -34,22 +33,19 @@ def greedy_decode(model, src, src_mask, max_len, start_symbol, dataset):
 def main():
     parser = argparse.ArgumentParser("Translate an english to a german sentence.")
     parser.add_argument(
-        '--model',
+        'model',
         type=str,
         help='Path to model checkpoint.',
-        default="/home/johann/sonstiges/transformer-pytorch/exps/2022-03-19_64_3_100/en-de-model-iter-0000240000.pt",
     )
     parser.add_argument(
         '--config',
         type=str,
         help='Path to config.yaml.',
-        default="/home/johann/sonstiges/transformer-pytorch/exps/2022-03-19_64_3_100/config.yaml",
     )
     parser.add_argument(
-        '--dataset',
+        'dataset',
         type=str,
         help='Path to dataset.file.',
-        default="/home/johann/sonstiges/transformer-pytorch/exps/2022-03-19_64_3_100/dataset.file",
     )
     parser.add_argument(
         '--src',
