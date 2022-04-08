@@ -17,7 +17,7 @@ python train.py
 
 ## Inference 
 
-You can download a pretrained english to german translation model, the corresponding config file and the dataset file [here](). This model was trained on a single GPU for 520,000 iterations.  You can use the `translate.py` to translate one sentence you provide like
+You can download a pretrained english to german translation model, the corresponding config file and the dataset file [here](https://drive.google.com/drive/folders/1DsEpozbkp3W2FxEb6O7MAg_aGnFEjf8z?usp=sharing). This model was trained on a single GPU for 520,000 iterations.  You can use the `translate.py` to translate one sentence you provide like
 
 ```
 python translate model.pt cfg.yaml dataset.file --src "your english sentence"
